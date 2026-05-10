@@ -1,5 +1,6 @@
 // src/server.js (Updated)
 
+import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import connectDB from "./config/db.js";
@@ -13,6 +14,7 @@ connectDB(); // Establish connection
 
 const app = express();
 app.use(express.json());
+app.use(cors());
 
 // Routes
 app.use("/api/books", bookRoutes);
