@@ -2,6 +2,11 @@
 import Book from "../models/Book.js";
 import Cart from "../models/Cart.js";
 
+const populateCart = (cart) => cart.populate("items.book");
+
+const calculateTotalPrice = (items) =>
+  items.reduce((total, item) => total + item.price * item.quantity, 0);
+
 // Get user's cart
 export const getCart = async (req, res) => {
   try {
@@ -21,8 +26,9 @@ export const getCart = async (req, res) => {
 export const addToCart = async (req, res) => {
   try {
     const { bookId, quantity } = req.body;
+    const requestedQuantity = Number(quantity);
 
-    if (!bookId || !quantity || quantity < 1) {
+    if (!bookId || !Number.isInteger(requestedQuantity) || requestedQuantity < 1) {
       return res.status(400).json({ message: "Invalid bookId or quantity" });
     }
 
@@ -31,7 +37,7 @@ export const addToCart = async (req, res) => {
       return res.status(404).json({ message: "Book not found" });
     }
 
-    if (book.stock < quantity) {
+    if (book.stock < requestedQuantity) {
       return res.status(400).json({ message: "Insufficient stock" });
     }
 
@@ -42,18 +48,19 @@ export const addToCart = async (req, res) => {
 
     const existingItem = cart.items.find((item) => item.book.equals(bookId));
     if (existingItem) {
-      existingItem.quantity += quantity;
+      if (book.stock < existingItem.quantity + requestedQuantity) {
+        return res.status(400).json({ message: "Insufficient stock" });
+      }
+      existingItem.quantity += requestedQuantity;
+      existingItem.price = book.price;
     } else {
-      cart.items.push({ book: bookId, quantity, price: book.price });
+      cart.items.push({ book: bookId, quantity: requestedQuantity, price: book.price });
     }
 
-    cart.totalPrice = cart.items.reduce(
-      (total, item) => total + item.price * item.quantity,
-      0,
-    );
+    cart.totalPrice = calculateTotalPrice(cart.items);
     await cart.save();
 
-    res.json(cart);
+    res.json(await populateCart(cart));
   } catch (error) {
     res.status(500).json({ message: "Server error adding to cart" });
   }
@@ -63,8 +70,9 @@ export const addToCart = async (req, res) => {
 export const updateCartItem = async (req, res) => {
   try {
     const { bookId, quantity } = req.body;
+    const requestedQuantity = Number(quantity);
 
-    if (!bookId || quantity < 0) {
+    if (!bookId || !Number.isInteger(requestedQuantity) || requestedQuantity < 0) {
       return res.status(400).json({ message: "Invalid bookId or quantity" });
     }
 
@@ -78,19 +86,24 @@ export const updateCartItem = async (req, res) => {
       return res.status(404).json({ message: "Item not in cart" });
     }
 
-    if (quantity === 0) {
+    if (requestedQuantity === 0) {
       cart.items = cart.items.filter((item) => !item.book.equals(bookId));
     } else {
-      item.quantity = quantity;
+      const book = await Book.findById(bookId);
+      if (!book) {
+        return res.status(404).json({ message: "Book not found" });
+      }
+      if (book.stock < requestedQuantity) {
+        return res.status(400).json({ message: "Insufficient stock" });
+      }
+      item.quantity = requestedQuantity;
+      item.price = book.price;
     }
 
-    cart.totalPrice = cart.items.reduce(
-      (total, item) => total + item.price * item.quantity,
-      0,
-    );
+    cart.totalPrice = calculateTotalPrice(cart.items);
     await cart.save();
 
-    res.json(cart);
+    res.json(await populateCart(cart));
   } catch (error) {
     res.status(500).json({ message: "Server error updating cart" });
   }
@@ -111,13 +124,10 @@ export const removeFromCart = async (req, res) => {
     }
 
     cart.items = cart.items.filter((item) => !item.book.equals(bookId));
-    cart.totalPrice = cart.items.reduce(
-      (total, item) => total + item.price * item.quantity,
-      0,
-    );
+    cart.totalPrice = calculateTotalPrice(cart.items);
     await cart.save();
 
-    res.json(cart);
+    res.json(await populateCart(cart));
   } catch (error) {
     res.status(500).json({ message: "Server error removing from cart" });
   }
@@ -135,7 +145,7 @@ export const clearCart = async (req, res) => {
     cart.totalPrice = 0;
     await cart.save();
 
-    res.json(cart);
+    res.json(await populateCart(cart));
   } catch (error) {
     res.status(500).json({ message: "Server error clearing cart" });
   }

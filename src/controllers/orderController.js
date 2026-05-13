@@ -1,5 +1,6 @@
 // src/controllers/orderController.js
 import Cart from "../models/Cart.js";
+import Book from "../models/Book.js";
 import Order from "../models/Order.js";
 
 // Create order from cart
@@ -24,9 +25,35 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ message: "Cart is empty" });
     }
 
+    const outOfStockItem = cart.items.find(
+      (item) => !item.book || item.book.stock < item.quantity,
+    );
+    if (outOfStockItem) {
+      return res.status(400).json({
+        message: `${outOfStockItem.book?.title || "A book"} does not have enough stock`,
+      });
+    }
+
+    const stockUpdate = await Book.bulkWrite(
+      cart.items.map((item) => ({
+        updateOne: {
+          filter: { _id: item.book._id, stock: { $gte: item.quantity } },
+          update: { $inc: { stock: -item.quantity } },
+        },
+      })),
+    );
+
+    if (stockUpdate.modifiedCount !== cart.items.length) {
+      return res.status(400).json({ message: "Some cart items are no longer in stock" });
+    }
+
     const order = await Order.create({
       user: req.user._id,
-      items: cart.items,
+      items: cart.items.map((item) => ({
+        book: item.book._id,
+        quantity: item.quantity,
+        price: item.price,
+      })),
       totalPrice: cart.totalPrice,
       shippingAddress,
     });
