@@ -1,13 +1,29 @@
-// src/config/db.js
 import mongoose from "mongoose";
 
+let connectionPromise;
+
 const connectDB = async () => {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
+    if (!process.env.MONGO_URI) {
+      throw new Error("MONGO_URI is not set");
+    }
+
+    connectionPromise = mongoose.connect(process.env.MONGO_URI);
+    const conn = await connectionPromise;
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+    return conn.connection;
   } catch (err) {
+    connectionPromise = undefined;
     console.error(`Error from config:   ${err.message}`);
-    process.exit(1);
+    throw err;
   }
 };
 
