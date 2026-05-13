@@ -13,6 +13,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import quoteRoutes from "./routes/quoteRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import wishlistRoutes from "./routes/wishlistRoutes.js";
 
 dotenv.config();
 connectDB(); // Establish connection
@@ -31,6 +32,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/library", libraryRoutes);
 app.use("/api/quotes", quoteRoutes);
+app.use("/api/wishlist", wishlistRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
