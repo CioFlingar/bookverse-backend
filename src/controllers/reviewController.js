@@ -2,6 +2,7 @@
 import Book from "../models/Book.js";
 import Order from "../models/Order.js";
 import Review from "../models/Review.js";
+import mongoose from "mongoose";
 
 // Check if user purchased the book
 const checkVerifiedPurchase = async (userId, bookId) => {
@@ -17,8 +18,9 @@ const checkVerifiedPurchase = async (userId, bookId) => {
 export const createReview = async (req, res) => {
   try {
     const { bookId, rating, comment } = req.body;
+    const numericRating = Number(rating);
 
-    if (!bookId || !rating || rating < 1 || rating > 5) {
+    if (!bookId || !Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
       return res.status(400).json({ message: "Invalid rating or bookId" });
     }
 
@@ -43,7 +45,7 @@ export const createReview = async (req, res) => {
     const review = await Review.create({
       book: bookId,
       user: req.user._id,
-      rating,
+      rating: numericRating,
       comment,
       verifiedPurchase,
     });
@@ -93,8 +95,12 @@ export const getBookReviews = async (req, res) => {
 export const updateReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
+    const numericRating = rating === undefined ? undefined : Number(rating);
 
-    if (rating && (rating < 1 || rating > 5)) {
+    if (
+      numericRating !== undefined &&
+      (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5)
+    ) {
       return res.status(400).json({ message: "Invalid rating" });
     }
 
@@ -109,7 +115,7 @@ export const updateReview = async (req, res) => {
         .json({ message: "Not authorized to update this review" });
     }
 
-    if (rating) review.rating = rating;
+    if (numericRating !== undefined) review.rating = numericRating;
     if (comment !== undefined) review.comment = comment;
 
     await review.save();
@@ -171,8 +177,11 @@ export const markHelpful = async (req, res) => {
 // Update book rating based on all reviews
 const updateBookRating = async (bookId) => {
   try {
+    const bookObjectId =
+      typeof bookId === "string" ? new mongoose.Types.ObjectId(bookId) : bookId;
+
     const result = await Review.aggregate([
-      { $match: { book: bookId } },
+      { $match: { book: bookObjectId } },
       {
         $group: {
           _id: "$book",
@@ -186,6 +195,11 @@ const updateBookRating = async (bookId) => {
       await Book.findByIdAndUpdate(bookId, {
         rating: Math.round(result[0].avgRating * 10) / 10,
         reviewsCount: result[0].count,
+      });
+    } else {
+      await Book.findByIdAndUpdate(bookId, {
+        rating: 0,
+        reviewsCount: 0,
       });
     }
   } catch (error) {

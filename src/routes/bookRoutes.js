@@ -4,6 +4,8 @@ import Book from "../models/Book.js";
 
 const router = express.Router();
 
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // GET /api/books
 // Get all books for the catalog with search, filter, and sort
 router.get("/", async (req, res) => {
@@ -22,33 +24,57 @@ router.get("/", async (req, res) => {
 
     // Build filter object
     const filter = {};
+    const andConditions = [];
+    const trimmedSearch = search?.trim();
 
-    if (search) {
-      filter.$text = { $search: search };
+    if (trimmedSearch) {
+      const searchRegex = new RegExp(escapeRegex(trimmedSearch), "i");
+      andConditions.push({ $or: [
+        { title: searchRegex },
+        { author: searchRegex },
+        { description: searchRegex },
+        { category: searchRegex },
+        { genre: searchRegex },
+        { publisher: searchRegex },
+        { language: searchRegex },
+      ] });
     }
     if (genre) {
-      filter.genre = genre;
+      const genreRegex = new RegExp(`^${escapeRegex(genre)}$`, "i");
+      andConditions.push({ $or: [
+        { genre: genreRegex },
+        { category: genreRegex },
+      ] });
     }
     if (author) {
-      filter.author = new RegExp(author, "i");
+      filter.author = new RegExp(escapeRegex(author), "i");
     }
     if (minPrice || maxPrice) {
       filter.price = {};
-      if (minPrice) filter.price.$gte = parseFloat(minPrice);
-      if (maxPrice) filter.price.$lte = parseFloat(maxPrice);
+      const parsedMinPrice = parseFloat(minPrice);
+      const parsedMaxPrice = parseFloat(maxPrice);
+      if (!Number.isNaN(parsedMinPrice)) filter.price.$gte = parsedMinPrice;
+      if (!Number.isNaN(parsedMaxPrice)) filter.price.$lte = parsedMaxPrice;
     }
     if (minRating) {
-      filter.rating = { $gte: parseFloat(minRating) };
+      const parsedMinRating = parseFloat(minRating);
+      if (!Number.isNaN(parsedMinRating) && parsedMinRating > 0) {
+        filter.rating = { $gte: parsedMinRating };
+      }
+    }
+    if (andConditions.length > 0) {
+      filter.$and = andConditions;
     }
 
     // Build sort object
     const sortOptions = {};
+    const sortKey = sort.startsWith("-") ? sort.slice(1) : sort;
     const sortField =
-      sort === "price"
+      sortKey === "price"
         ? "price"
-        : sort === "rating"
+        : sortKey === "rating"
           ? "rating"
-          : sort === "title"
+          : sortKey === "title"
             ? "title"
             : "createdAt";
     sortOptions[sortField] = sort.startsWith("-") ? -1 : 1;
