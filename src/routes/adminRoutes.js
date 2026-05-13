@@ -6,8 +6,8 @@ import Book from "../models/Book.js";
 
 const router = express.Router();
 
-// @route   GET /api/admin/stats
-// @desc    Get dashboard metrics (Total Sales, Books Count)
+// GET /api/admin/stats
+//Get dashboard metrics (Total Sales, Books Count)
 router.get("/stats", protect, admin, async (req, res) => {
   try {
     const bookCount = await Book.countDocuments();

@@ -4,8 +4,8 @@ import Book from "../models/Book.js";
 
 const router = express.Router();
 
-// @route   GET /api/books
-// @desc    Get all books for the catalog
+// GET /api/books
+// Get all books for the catalog
 router.get("/", async (req, res) => {
   try {
     const books = await Book.find();
