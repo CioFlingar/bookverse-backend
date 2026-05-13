@@ -30,6 +30,10 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
   const { email, password, rememberMe } = req.body;
   try {
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
       // Handle remember me (30 days)
@@ -38,8 +42,8 @@ export const loginUser = async (req, res) => {
           Date.now() + 30 * 24 * 60 * 60 * 1000,
         );
         user.rememberMeExpiry = rememberMeExpiry;
+        await user.save();
       }
-      await user.save();
 
       res.json({
         _id: user._id,
@@ -53,7 +57,14 @@ export const loginUser = async (req, res) => {
       res.status(401).json({ message: "Invalid email or password" });
     }
   } catch (error) {
-    res.status(500).json({ message: "Server error during login" });
+    console.error("Login error:", error);
+    res.status(500).json({
+      message: "Server error during login",
+      error:
+        process.env.NODE_ENV === "production"
+          ? undefined
+          : error.message,
+    });
   }
 };
 
