@@ -21,6 +21,7 @@ const allowedOrigins = process.env.CORS_ORIGIN
       .map((origin) => origin.trim())
       .filter(Boolean)
   : [];
+const productionOrigins = ["https://bookverse-frontend-drab.vercel.app"];
 const devOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
@@ -29,10 +30,9 @@ const devOrigins = [
 ];
 const corsOrigins =
   process.env.NODE_ENV === "production"
-    ? allowedOrigins
-    : [...allowedOrigins, ...devOrigins];
+    ? [...productionOrigins, ...allowedOrigins]
+    : [...productionOrigins, ...allowedOrigins, ...devOrigins];
 
-app.use(express.json());
 app.use(
   cors({
     origin(origin, callback) {
@@ -40,12 +40,13 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error(`CORS blocked request from origin: ${origin}`));
+      return callback(null, false);
     },
     allowedHeaders: ["Content-Type", "Authorization"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   }),
 );
+app.use(express.json());
 
 app.get("/", (req, res) => {
   res.json({ message: "BookVerse API is running" });
@@ -59,7 +60,8 @@ app.use(async (req, res, next) => {
   try {
     await connectDB();
     next();
-  } catch {
+  } catch (error) {
+    console.error(`Database connection failed: ${error.message}`);
     res.status(500).json({ message: "Database connection failed" });
   }
 });
